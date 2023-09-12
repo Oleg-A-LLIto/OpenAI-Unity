@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace OpenAI
 {
@@ -14,17 +16,18 @@ namespace OpenAI
         [SerializeField] private RectTransform received;
 
         private float height;
-        private OpenAIApi openai = new OpenAIApi();
+        private OpenAIApi openai = new OpenAIApi(/*OpenAI Key can go here.*/);
 
         private List<ChatMessage> messages = new List<ChatMessage>();
-        private string prompt = "Act as a random stranger in a chat room and reply to the questions. Don't break character. Don't ever mention that you are an AI model.";
+
+        private PersonaExample personaExample = new PersonaExample();
 
         private void Start()
         {
             button.onClick.AddListener(SendReply);
         }
 
-        private void AppendMessage(ChatMessage message)
+        private void AppendMessageToUI(ChatMessage message)
         {
             scroll.content.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 0);
 
@@ -37,6 +40,28 @@ namespace OpenAI
             scroll.verticalNormalizedPosition = 0;
         }
 
+        private ChatMessage HandleFunctionCalling(FunctionCall? functionCall)
+        {
+            string functionName = functionCall?.Name;
+            string msgContent = "";
+            Debug.Log("functionName :: " + functionName);
+            if (functionName == "report_pain_level") {
+                Debug.Log("Add pain level to message");
+                msgContent = personaExample.content_pain;
+            }
+            if (functionName == "enter_wheelchair") {
+                Debug.Log("Add patient in wheelchair to message");
+                msgContent = personaExample.content_wheelchair;
+            }
+            Debug.Log("=================================");
+            return new ChatMessage()
+            {
+                Role = "function",
+                Name = functionName,
+                Content = msgContent
+            };
+        }
+
         private async void SendReply()
         {
             var newMessage = new ChatMessage()
@@ -45,9 +70,9 @@ namespace OpenAI
                 Content = inputField.text
             };
             
-            AppendMessage(newMessage);
+            AppendMessageToUI(newMessage);
 
-            if (messages.Count == 0) newMessage.Content = prompt + "\n" + inputField.text; 
+            if (messages.Count == 0) newMessage.Content = personaExample.prompt + "\n" + inputField.text; 
             
             messages.Add(newMessage);
             
@@ -55,20 +80,53 @@ namespace OpenAI
             inputField.text = "";
             inputField.enabled = false;
             
+            // Step 1: send the conversation and available functions to GPT
             // Complete the instruction
             var completionResponse = await openai.CreateChatCompletion(new CreateChatCompletionRequest()
             {
                 Model = "gpt-3.5-turbo-0613",
-                Messages = messages
+                Messages = messages,
+                Functions = personaExample.functions
             });
 
-            if (completionResponse.Choices != null && completionResponse.Choices.Count > 0)
+            // Step 2: check if GPT wanted to call a function
+            bool MessageHasFunctionCalling = (completionResponse.Choices[0].Message.FunctionCall != null);
+            if (MessageHasFunctionCalling)
             {
-                var message = completionResponse.Choices[0].Message;
-                message.Content = message.Content.Trim();
-                
-                messages.Add(message);
-                AppendMessage(message);
+                // Step 3: call the function
+                Debug.Log("Function calling DETECTED!");
+                FunctionCall? functionCall = completionResponse.Choices[0].Message.FunctionCall;
+                ChatMessage funcMsg = HandleFunctionCalling(functionCall);
+                messages.Add(funcMsg);
+
+                // Step 4: send the info on the function call and function response to GPT
+                var completionResponse2 = await openai.CreateChatCompletion(new CreateChatCompletionRequest()
+                {
+                    Model = "gpt-3.5-turbo-0613",
+                    Messages = messages
+                });
+
+                bool functionResponseHasChoices = (completionResponse2.Choices != null && completionResponse2.Choices.Count > 0);
+                if (functionResponseHasChoices) {
+                    var message = completionResponse2.Choices[0].Message;
+                    message.Content = message.Content.Trim();
+                    
+                    messages.Add(message);
+                    AppendMessageToUI(message);
+                }
+            }
+
+            bool responseHasChoices = (completionResponse.Choices != null && completionResponse.Choices.Count > 0);
+            if (responseHasChoices)
+            {
+                if (completionResponse.Choices[0].Message.FunctionCall == null)
+                {
+                    var message = completionResponse.Choices[0].Message;
+                    message.Content = message.Content.Trim();
+                    
+                    messages.Add(message);
+                    AppendMessageToUI(message);
+                }
             }
             else
             {
