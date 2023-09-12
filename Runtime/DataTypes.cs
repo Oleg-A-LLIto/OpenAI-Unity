@@ -144,14 +144,14 @@ namespace OpenAI
     public struct ChatMessage
     {
         public string Role { get; set; }
+        public string? Name { get; set; }
         public string Content { get; set; }
-
         public FunctionCall? FunctionCall { get; set; } // Custom Added!
     }
     
     public struct FunctionCall
     {
-        public Dictionary<string, string> Arguments;
+        public string Arguments { get; set; }
         public string Name { get; set; }
     }
     
