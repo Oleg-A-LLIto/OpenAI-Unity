@@ -85,7 +85,7 @@ namespace OpenAI
     {
         public string Model { get; set; }
         public List<ChatMessage> Messages { get; set; }
-        public List<OpenAIFunction>? Functions { get; set; } // Added
+        public List<FunctionDescription>? Functions { get; set; } // Added
 		public string? FunctionCall { get; set; }
         public float? Temperature { get; set; } = 1;
         public int N { get; set; } = 1;
@@ -111,7 +111,7 @@ namespace OpenAI
     }
 
     // === Added classes !! ====================================================
-    public class OpenAIFunction
+    public class FunctionDescription
     {
         public string Name { get; set; }
         public string Description { get; set; }
