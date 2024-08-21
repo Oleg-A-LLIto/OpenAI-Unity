@@ -84,9 +84,9 @@ namespace OpenAI
             // Complete the instruction
             var completionResponse = await openai.CreateChatCompletion(new CreateChatCompletionRequest()
             {
-                Model = "gpt-3.5-turbo-0613",
-                Messages = messages,
-                Functions = personaExample.functions
+                Model = "gpt-4o-mini",
+                Messages = messages
+				Functions = personaExample.functions
             });
 
             // Step 2: check if GPT wanted to call a function
